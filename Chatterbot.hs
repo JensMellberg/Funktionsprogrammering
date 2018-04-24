@@ -115,9 +115,9 @@ substitute wildcard (x:list) list2
 -- Tries to match two lists. If they match, the result consists of the sublist
 -- bound to the wildcard in the pattern list.
 match :: Eq a => a -> [a] -> [a] -> Maybe [a]
-match wildcard [] [] = Just []
-match wildcard [] list = Nothing
-match wildcard list [] = Nothing
+match _ [] [] = Just []
+match _ [] _ = Nothing
+match _ _ [] = Nothing
 match wildcard (x:list) (y:list2)
  | wildcard /= x && x /= y = Nothing
  | wildcard /= x && x == y = match wildcard list list2
@@ -126,7 +126,7 @@ match wildcard (x:list) (y:list2)
 
 -- Helper function to match
 singleWildcardMatch, longerWildcardMatch :: Eq a => [a] -> [a] -> Maybe [a]
-singleWildcardMatch (wc:ps) (x:xs) = mmap (x:) (match wc ps xs)
+singleWildcardMatch (wc:ps) (x:xs) = mmap (const [x]) (match wc ps xs)
 longerWildcardMatch (wc:ps) (x:xs) = mmap (x:) (match wc (wc:ps) xs)
 
 
