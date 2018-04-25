@@ -26,16 +26,21 @@ type BotBrain = [(Phrase, [Phrase])]
 --------------------------------------------------------
 
 stateOfMind :: BotBrain -> IO (Phrase -> Phrase)
-{- TO BE WRITTEN -}
-stateOfMind _ = return id
+stateOfMind b = do
+  r <- randomIO :: IO Float
+  return $ rulesApply $ (map . map2) (id, pick r) b
 
 rulesApply :: [PhrasePair] -> Phrase -> Phrase
-{- TO BE WRITTEN -}
-rulesApply _ = id
+rulesApply pairs word = takeJust $ orElse  (transformationsApply "*" reflect pairs word)  (Just [])
 
 reflect :: Phrase -> Phrase
-{- TO BE WRITTEN -}
-reflect = id
+reflect words = map (replaceIf reflections) words
+
+
+replaceIf [] word = word
+replaceIf (p:pairs) word
+ | word == (fst p) = snd p
+ | otherwise = replaceIf pairs word
 
 reflections =
   [ ("am",     "are"),
@@ -69,8 +74,7 @@ prepare :: String -> Phrase
 prepare = reduce . words . map toLower . filter (not . flip elem ".,:;*!#%&|")
 
 rulesCompile :: [(String, [String])] -> BotBrain
-{- TO BE WRITTEN -}
-rulesCompile _ = []
+rulesCompile = map (map2 (words . (map toLower), map words))
 
 
 --------------------------------------
@@ -95,8 +99,11 @@ reduce :: Phrase -> Phrase
 reduce = reductionsApply reductions
 
 reductionsApply :: [PhrasePair] -> Phrase -> Phrase
-{- TO BE WRITTEN -}
-reductionsApply _ = id
+reductionsApply = fix . try . transformationsApply "*" id
+
+
+
+takeJust (Just x) = x
 
 
 -------------------------------------------------------
@@ -151,11 +158,15 @@ matchCheck = matchTest == Just testSubstitutions
 
 -- Applying a single pattern
 transformationApply :: Eq a => a -> ([a] -> [a]) -> [a] -> ([a], [a]) -> Maybe [a]
-transformationApply _ _ _ _ = Nothing
-{- TO BE WRITTEN -}
+transformationApply wc f list1 pair
+ | res /= Nothing = Just $ substitute wc (snd pair) (f . takeJust $ res)
+ | otherwise = Nothing
+ where
+  res =  match wc (fst pair) list1
+
 
 
 -- Applying a list of patterns until one succeeds
 transformationsApply :: Eq a => a -> ([a] -> [a]) -> [([a], [a])] -> [a] -> Maybe [a]
-transformationsApply _ _ _ _ = Nothing
-{- TO BE WRITTEN -}
+transformationsApply wc f [] list = Nothing
+transformationsApply wc f (x:pairlist) list = orElse (transformationApply wc f list x) (transformationsApply wc f pairlist list)
