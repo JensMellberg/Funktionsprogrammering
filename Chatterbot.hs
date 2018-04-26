@@ -2,6 +2,7 @@ module Chatterbot where
 import Utilities
 import System.Random
 import Data.Char
+import Data.Maybe
 
 chatterbot :: String -> [(String, [String])] -> IO ()
 chatterbot botName botRules = do
@@ -34,12 +35,12 @@ rulesApply :: [PhrasePair] -> Phrase -> Phrase
 rulesApply pairs word = takeJust $ orElse  (transformationsApply "*" reflect pairs word)  (Just [])
 
 reflect :: Phrase -> Phrase
-reflect words = map (replaceIf reflections) words
+reflect = map (replaceIf reflections)
 
 
 replaceIf [] word = word
 replaceIf (p:pairs) word
- | word == (fst p) = snd p
+ | word == fst p = snd p
  | otherwise = replaceIf pairs word
 
 reflections =
@@ -74,7 +75,8 @@ prepare :: String -> Phrase
 prepare = reduce . words . map toLower . filter (not . flip elem ".,:;*!#%&|")
 
 rulesCompile :: [(String, [String])] -> BotBrain
-rulesCompile = map (map2 (words . (map toLower), map words))
+--rulesCompile = map (map2 (words . (map toLower), map words))
+rulesCompile = map . map2 $ (words . map toLower, map words)
 
 
 --------------------------------------
@@ -127,7 +129,7 @@ match _ [] _ = Nothing
 match _ _ [] = Nothing
 match wildcard (x:list) (y:list2)
  | wildcard /= x && x /= y = Nothing
- | wildcard /= x && x == y = match wildcard list list2
+ | wildcard /= x = match wildcard list list2
  | wildcard == x = orElse (singleWildcardMatch (x:list) (y:list2)) (longerWildcardMatch (x:list) (y:list2))
 
 
@@ -159,7 +161,7 @@ matchCheck = matchTest == Just testSubstitutions
 -- Applying a single pattern
 transformationApply :: Eq a => a -> ([a] -> [a]) -> [a] -> ([a], [a]) -> Maybe [a]
 transformationApply wc f list1 pair
- | res /= Nothing = Just $ substitute wc (snd pair) (f . takeJust $ res)
+ | isJust res = Just $ substitute wc (snd pair) (f . takeJust $ res)
  | otherwise = Nothing
  where
   res =  match wc (fst pair) list1
@@ -168,5 +170,11 @@ transformationApply wc f list1 pair
 
 -- Applying a list of patterns until one succeeds
 transformationsApply :: Eq a => a -> ([a] -> [a]) -> [([a], [a])] -> [a] -> Maybe [a]
-transformationsApply wc f [] list = Nothing
-transformationsApply wc f (x:pairlist) list = orElse (transformationApply wc f list x) (transformationsApply wc f pairlist list)
+
+--Original Code
+--transformationsApply wc f [] list = Nothing
+--transformationsApply wc f (x:pairlist) list = orElse (transformationApply wc f list x) (transformationsApply wc f pairlist list)
+
+--Hlint improvement
+transformationsApply wc f pairlist list
+  = foldr (orElse . transformationApply wc f list) Nothing pairlist
