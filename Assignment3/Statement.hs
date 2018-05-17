@@ -18,19 +18,27 @@ data Statement =
 assignment = word #- accept ":=" # Expr.parse #- require ";" >-> buildAss
 buildAss (v, e) = Assignment v e
 
-skip = accept "skip" # require ";" >-> (\_ -> Skip)
-begin = accept "begin" -# iter parse #- require "end" >-> (\x -> Begin x)
-ifstatement = accept "if" -# Expr.parse #- require "then" # parse #- require "else" # parse >-> (\((ex,s1),s2) -> If ex s1 s2)
-while = accept "while" -# Expr.parse #- require "do" # parse >-> (\(ex, s) -> While ex s)
-readstatement = accept "read" -# word #- require ";" >-> (\x -> Read x)
-write = accept "write" -# Expr.parse #- require ";" >-> (\x -> Write x)
-comment = accept "--" -# iter notNewline >-> (\_ -> Comment)
+skip =spaces -# accept "skip" # require ";" >-> (\_ -> Skip)
+begin = spaces -# accept "begin" -# iter parse #- require "end" >-> (\x -> Begin x)
+ifstatement =spaces -# accept "if" -# Expr.parse #- require "then" # parse #- require "else" # parse >-> (\((ex,s1),s2) -> If ex s1 s2)
+while =spaces -# accept "while" -# Expr.parse #- require "do" # parse >-> (\(ex, s) -> While ex s)
+readstatement =spaces -# accept "read" -# word #- require ";" >-> (\x -> Read x)
+write = spaces -# accept "write" -# Expr.parse #- require ";" >-> (\x -> Write x)
+comment = spaces -# accept "--" -# iter notNewline # iter newline >-> (\_ -> Comment)
 
 notNewline :: Parser Char
 notNewline [] = Nothing
 notNewline (x:xs)
  | x == '\n' = Nothing
  | otherwise = Just (x,xs)
+
+newline :: Parser Char
+newline [] = Nothing
+newline (x:xs)
+ | x == '\n' = Just (x,xs)
+ | otherwise = Nothing
+
+
 
 
 exec :: [T] -> Dictionary.T String Integer -> [Integer] -> [Integer]
@@ -54,11 +62,16 @@ exec (Read str : stmts) dict (i:input) =
 exec (Write expr : stmts) dict input =
     Expr.value expr dict : exec stmts dict input
 
+makeSpace n = replicate (2*n) ' '
+toStringhelp n (Assignment v e)= makeSpace n ++ v ++ " := "++ Expr.toString e ++ ";\n"
+toStringhelp  n (Skip) = makeSpace n ++ "skip;\n"
+toStringhelp n (Begin x) = makeSpace n ++ "begin\n" ++ (concat $ map (toStringhelp (n+1)) x) ++ makeSpace n ++ "end\n"
+toStringhelp n (If expr s1 s2) =makeSpace n ++ "if " ++  Expr.toString expr ++ " then\n" ++ toStringhelp (n+1) s1 ++ makeSpace n ++ "else\n" ++ toStringhelp (n+1) s2
+toStringhelp n (While expr s1) = makeSpace n ++ "while " ++ Expr.toString expr ++ " do\n" ++ toStringhelp (n+1) s1
+toStringhelp n (Read str) = makeSpace n ++ "read " ++ str ++ ";\n"
+toStringhelp n (Write expr) = makeSpace n ++ "write " ++ Expr.toString expr ++ ";\n"
 
 
 instance Parse Statement where
   parse = assignment ! skip ! begin ! ifstatement ! while ! readstatement ! write ! comment
-  toString (Assignment v e)= v ++ " := "++ Expr.toString e ++ ";\n"
-  toString (Skip) = "skip;\n"
-  toString (Begin x) = "begin\n" ++ (concat $ map ((\s -> "  "++s) . toString) x) ++ "end\n"
-  toString (If expr s1 s2) = "if " ++ Expr.toString expr ++ " then\n  " ++ 
+  toString = toStringhelp 0
